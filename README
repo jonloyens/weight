@@ -1,0 +1,5 @@
+This project, immaturely and humourously titled "weight" so I can snicker whenever I think about typing 'git push weight' is really my playground for tools involving social network api's.  I think I really meant to call it 'social weight'.  The first project under this playground is:
+
+findinterests_site:
+- this is a simple Django (but really, mostly JavaScript) site that reads all of your friends likes, interests and activities and then rates how similar each of your friends are to you and then lets you search your friends likes and interests for things you might be interested in.
+- Interesting things about this: Uses a modification on Peter Norvig's stats based spell check to do autocomplete/searching on likes/interests loaded in from your Facebook friends.
