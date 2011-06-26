@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block ogtags %}
+	<meta property="og:title" content="Jon Loyens" /> 
+    <meta property="og:image" content="http://loyens.org/img/jononboat.jpg" /> 
+    <meta property="og:type" content="website" /> 
+    <meta property="og:url" content="http://refreshfb.loyens.org/" /> 
+    <meta property="fb:app_id" content="300132445106" /> 
+    <meta property="og:site_name" content="Refresh Austin FB Demo" /> 
+    <meta property="og:description" content="A demo of the FB Platform by Jon Loyens for Refresh Austin" /> 		
+{% endblock ogtags %}
+
+{% block main %}
+	<p>We'll start by having you click a Like button:</p>
+	<div id="likebutton">
+		<fb:like href="http://refreshfb.loyens.org" send="true" width="450" show_faces="true" font="segoe ui"></fb:like>
+	</div>
+
+	<div id="liked" class="reveal">
+		<p>Once something is liked, if you know it's FB ID, we can get information on it via the Graph API</p>
+		<ul>
+			<li><a href="http://graph.facebook.com/103773232995164">University of Waterloo</a></li>
+			<li><a href="http://graph.facebook.com/115496108475317">A pair of jeans I liked on Levis.com</a></li>
+		</ul>
+		<a href="/login/">Next to Authentication</a>
+	</div>
+{% endblock main %}
+
+{% block local_script %}
+	<script>
+		FB.Event.subscribe('edge.create', function(response) {
+  			alert("Thanks for liking this!");
+  			$("#liked").slideToggle();
+		});
+	</script>
+{% endblock local_script %}

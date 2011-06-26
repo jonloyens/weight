@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block main %}
+	{% if fblogin %}
+		<p>Now let's see what we can mine out of the API</p>
+		<div id="aboutme"><a href="#">Stuff about me!</a><ul></ul></div>
+		<div id="aboutfriends"><a href="#">Stuff about my friends</a><ul id="root"></ul></div>
+	{% else %}
+		<p id="login"><a href="#">Oops... how'd you get there without logging in?</a></p>
+	{% endif %}
+{% endblock main %}
+
+{% block local_script %}
+	<script>
+		$(document).ready(function(){
+			$("#aboutme a").click(function(){
+				FB.api("/me", function(response){
+					console.log(response);
+					$("#aboutme ul").prepend(
+						"<li><img src='http://graph.facebook.com/"+response.id+"/picture'></li>"+
+						"<li>"+response.first_name+" "+response.last_name+"</li>"
+					);
+				});
+				
+				FB.api("/me/likes", {limit:10}, function(response){
+					console.log(response);
+					var likes = [];
+					$.each(response.data, function(i,val){likes.push(val.category+":"+val.name)});
+					$("#aboutme ul").append(
+						"<li>"+likes.join(', ')+"</li>"
+					);
+				});
+				return false;
+			});
+
+			$("#aboutfriends a").click(function(){
+				FB.api("/me/friends", {limit:10}, function(response) {
+					$.each(response.data, function(i,val) {
+						var entry = "<li><ul><li><img src='http://graph.facebook.com/"+val.id+"/picture'></li><li>"+val.name+"</li></ul></li>";
+						var li = $(entry).appendTo("#aboutfriends ul#root");
+						FB.api(val.id+"/likes", {limit:10}, function(response) {
+							var likes = [];
+							$.each(response.data, function(i,val){likes.push(val.category+":"+val.name)});
+							$('ul',li).append("<li>"+likes.join(', ')+"</li>");
+						});
+					});
+				});
+
+				return false;
+			});
+
+			$("#login a").click(function(){
+				return false;
+			});
+		});
+	</script>
+{% endblock local_script %}

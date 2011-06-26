@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+
+{% block title %}
+	<title>Facebook Interest Finder</title>
+{% endblock title %}
+
+{% block header %}
+	<h1>Facebook Interest Finder</h1>
+{% endblock header %}
+
+{% block main %}
+	<div id="needpermissions">
+		<h2>Find friends' interests</h2>
+		<p>Looks like you still need to login or grant us the appropriate permissions. Click <a href="#" id="logmein">here</a> to login and/or grant permissions</p>
+	</div>
+	<div id="loggedin">
+		<ul>
+			<li><a href="#" id="loadfb">Load interests from FB</a></li>
+			{% if settings.DEBUG %}
+				<li><a href="#" id="loadlocal">Load interests from localStorage</a></li>
+				<li><a href="#" id="storelocal">Store interests to localStorage</a></li>
+			{% endif %}
+		</ul>
+		<div id="datacounts" style="display:none">
+			<p>Collected <span id="interestcount"></span> interests from <span id="friendcount"></span> of <span id="totalfriends"></span> friends<p>
+		</div>
+		<div id="tools" style="display:none">
+			<div id="results">
+				<p>Search Results:</p>
+				<div id="matchingfriends"></div>
+				<p>Friends Most Like You:</p>
+				<div id="mostlikefriends"></div>
+			</div>
+			<div id="controls">
+				<p><label for="searchinterests">Search Interests:</label><br><input id="searchinterests" type="text" name="searchinterests" size="40"/></p>		
+			</div>
+			
+		</div>
+	</div>		
+{% endblock main %}
+
+{% block local_script %}
+	<script src="{{STATIC_URL}}js/libs/jquery-ui-1.8.13.custom.min.js"></script>
+	<script src="{{STATIC_URL}}js/libs/speller.js"></script>
+	<script>
+		// should wrap all of this in the module pattern to avoid global scope leakage
+		var checkloginstatus = function checkloginstatus(fbresponse, checkperms, callback) {
+			if (fbresponse.session) {
+				// User is logged in but do we have the right permissions?
+				// FB returns the perms object but that's unreliable.  we're going to use another call to check on permissions instead
+				FB.api('/me?fields=permissions', function(response){
+					var loggedin = true;
+					var perms = response.permissions.data[0];
+					$.each(checkperms, function(i, val) {
+						if( (perms.hasOwnProperty(val)) == false ) {
+							loggedin = false;
+						}
+					});
+					callback(loggedin);
+				});
+		  	} else {
+		    	callback(false);
+		  	}
+		}
+
+		var interestmap = {};
+		var friendmap = {};
+		var totalinterests = 0;
+		var totalfriends = 0;
+		var friendslength = 0;
+		var initiated_apicalls = 0;
+		var finished_apicalls = 0;
+		var apicalls_tobemade = 0;
+
+		var me = {};
+		var my_interestmap = {};
+
+		var storeinterestdata = function storeinterestdata() {
+			if (Modernizr.localstorage) {
+				localStorage.setItem("friendmap", JSON.stringify(friendmap));
+				localStorage.setItem("totalinterests",totalinterests);
+				localStorage.setItem("totalfriends",totalfriends);
+			}
+		}
+
+		var loadinterestdata = function loadinterestdata() {
+			if(Modernizr.localstorage) {
+				if ( "freindmap" in localStorage ) {
+					friendmap = JSON.parse(localStorage.getItem("friendmap"));
+					totalinterests = parseInt(localStorage.getItem("totalinterests"));
+					totalfriends = parseInt(localStorage.getItem("totalfriends"));
+					speller.nWords = {}
+					for( k in friendmap ) {
+						build_interest_map(friendmap[k].activities, k);
+						build_interest_map(friendmap[k].interests, k);
+						build_interest_map(friendmap[k].likes, k);
+					}
+					$("#interestcount").html(totalinterests);
+					$("#totalfriends").html(totalfriends);
+				}
+			}
+		}
+
+		var add_my_interests = function add_my_interests(likes) {
+			$.each(likes, function(i,v){
+				my_interestmap[v.name.toLowerCase()] = v;
+			});
+		}
+
+		var calculate_closest_friends = function calculate_closest_friends() {
+			my_interestmap = {};
+			add_my_interests(me.likes);
+			add_my_interests(me.interests);
+			add_my_interests(me.activities);
+
+			var friend_count = {};
+			$.each(my_interestmap, function(i,v){
+				if(i in interestmap) {
+					$.each(interestmap[i], function(j,k){
+						friend_count[j] = (friend_count[j] != undefined ? friend_count[j]+=1 : 1);
+					});
+				}
+			});
+
+			// invert the friend count and output
+			var interest_counts = {};
+			var max_count = 0;
+			$.each(friend_count, function(k,v) {
+				if( max_count < v ) max_count = v;
+				if( interest_counts[v] != undefined ) {
+					interest_counts[v].push(k);
+				} else {
+					interest_counts[v] = [k];
+				}
+			});
+			
+			var output = 1;
+			var html = "<ol>";
+			for ( var i = max_count; i > 0; i-- ) {
+				if ( interest_counts[i] != undefined ) {
+					for( var j = 0; j < interest_counts[i].length; j++) {
+						var friend_id = interest_counts[i][j];
+						html += "<li>"+
+							"<img src='http://graph.facebook.com/"+friend_id+"/picture'/>"+
+							"<a href='"+friendmap[friend_id].fbdata.link+"'>"+friendmap[friend_id].name+"</a>"+"("+i+")"+
+							"</li>";
+						output++;
+						if (output > 10) break;
+					}
+				}
+				if (output > 10) break;
+			}
+			$("#mostlikefriends").html(html+"</ol>");
+
+		}
+
+		var check_done = function check_done() {
+			$("#friendcount").html(Math.floor(finished_apicalls/4));
+			if ( finished_apicalls >= apicalls_tobemade ) {
+				$("#tools").show();
+				calculate_closest_friends();
+			}
+		}
+
+		var addinterest = function addinterest(interest, person) {
+			if ( (interest != undefined) && (person != undefined) ) {
+				interest = interest.toLowerCase();
+				if( interestmap[interest] == undefined ) {
+					interestmap[interest] = {}; // making this an object/map prevents adding people twice
+					speller.train(interest);
+					totalinterests++;
+				}
+				interestmap[interest][person] = person; // could store more interesting things here
+			}
+		}
+
+		var build_interest_map = function build_interest_map(data, fbid) {
+			$.each(data, function(i,val) {
+				addinterest(val.name, fbid);
+				$("#interestcount").html(totalinterests);
+			});
+		}
+
+		var addinterests = function addinterests(fbid, ogtype, user) {
+			initiated_apicalls++;
+			FB.api(fbid+"/"+ogtype, function(response) {
+				friendmap[fbid][ogtype] = response.data;
+				build_interest_map(response.data, fbid);
+				finished_apicalls++;
+				check_done();
+			});
+		}
+
+		var get_my_data = function get_my_data() {
+			FB.api("me/interests", function(response) {
+				me.interests = response.data;
+			});
+			FB.api("me/activities", function(response) {
+				me.activities = response.data;
+			});
+			FB.api("me/likes", function(response) {
+				me.likes = response.data;
+			});
+		}
+
+		var collectfriendsdata = function collectfriendsdata(){
+			get_my_data();
+			FB.api("/me/friends", function(response) {
+				$("#totalfriends").html(response.data.length);
+				apicalls_tobemade=response.data.length*4;
+				$.each(response.data, function(i,val) {
+					var user = val.name;
+					var fbid = val.id;
+					friendmap[fbid] = val;
+					initiated_apicalls++;
+					FB.api(fbid+"/", function(response){
+						friendmap[fbid].fbdata = response;
+						finished_apicalls++;
+						check_done();
+					});
+					addinterests(fbid, "likes", user);
+					addinterests(fbid, "interests", user);
+					addinterests(fbid, "activities", user);
+				});
+			});
+		}
+
+		var logincallback = function logincallback(status){
+			var loggedinelement = $("#loggedin")[0];
+			var notloggedinelement = $("#needpermissions")[0];
+			if(status) {
+				$(loggedinelement).show();
+				$(notloggedinelement).hide();
+			} else {
+				$(loggedinelement).hide();
+				$(notloggedinelement).show();
+			}
+		}
+
+		var contains = function contains(val, arr) {
+			for ( var i=0; i < arr.length; i++ ) {
+				if (arr[i] == val ) return true;
+			}
+			return false;
+		}
+
+		var searchinterests = function searchinterests(term,callback){
+			var results = [];
+			var sorted_results = [];
+			var corrections = speller.correct(term.term);
+			
+			for(k in corrections.candidates) {
+				if (corrections.candidates.hasOwnProperty(k)) {
+					sorted_results.push(parseInt(k));
+				}
+			}
+
+			sorted_results.sort(function(a,b){return b - a});
+
+			$.each(sorted_results,function(i,val) {
+				key = corrections.candidates[val];
+				interests = speller.nWords[key];
+				$.each(interests.orig, function(i, val) {
+					if (!contains(val,results)) {
+						results.push(val);
+					}
+				});
+			});
+
+			callback(results);
+		}
+
+		var setfriends = function setfriends(element) {
+			var item = element.item.value;
+			var friends = interestmap[item];
+			var output = [];
+			for (k in friends) {
+				if ( friends.hasOwnProperty(k) ) {
+					output.push(
+						"<li>"+
+						"<img src='http://graph.facebook.com/"+friendmap[friends[k]].id+"/picture'/>"+
+						"<a href='"+friendmap[friends[k]].fbdata.link+"'>"+friendmap[friends[k]].name+"</a>"+
+						"</li>"
+					);
+				}
+			}
+			$("#matchingfriends").html("<ul>"+output.join("")+"</ul>");
+		}
+
+		$(document).ready(function(){
+			var permlist = ["friends_likes","friends_interests","friends_activities"];
+			
+			// TODO: we loaded FB js sdk synchronously earlier so this is okay but we should load it async and check on the async load
+			FB.getLoginStatus(function(response) {
+				checkloginstatus(response, permlist, logincallback);
+			});
+			
+			// if the user does have the right perms, ask them for them
+			$("#logmein").click(function(){
+				FB.login(function(response) {
+				  	checkloginstatus(response, permlist, logincallback);
+				}, {perms:permlist.join(',')});
+
+				return false;
+			});
+
+			$("#loadfb").click(function(){$("#datacounts").show();collectfriendsdata();return false;});
+			$("#loadlocal").click(function(){loadinterestdata();return false;});
+			$("#storelocal").click(function(){storeinterestdata();return false;});
+			$("#searchinterests").autocomplete({
+				source:searchinterests,
+				focus: function(e, ui) {
+					setfriends(ui);
+				},
+				select: function(e, ui) {
+					setfriends(ui);
+				},
+			});
+		});
+	</script>
+{% endblock local_script %}

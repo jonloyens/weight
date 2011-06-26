@@ -1,0 +1,100 @@
+<!doctype html>
+<!--[if lt IE 7 ]> <html lang="en" class="no-js ie6"> <![endif]-->
+<!--[if IE 7 ]>    <html lang="en" class="no-js ie7"> <![endif]-->
+<!--[if IE 8 ]>    <html lang="en" class="no-js ie8"> <![endif]-->
+<!--[if IE 9 ]>    <html lang="en" class="no-js ie9"> <![endif]-->
+<!--[if (gt IE 9)|!(IE)]><!--> <html lang="en" class="no-js"> <!--<![endif]-->
+<head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+			
+	{% block title %}
+		<title>Refresh Austin FB OG Demo</title>
+	{% endblock title %}
+	
+	<meta name="description" content="">
+	<meta name="author" content="">
+	
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="stylesheet" href="{{STATIC_URL}}css/style.css">
+	<link rel="stylesheet" href="{{STATIC_URL}}css/jquery.autocomplete.css">
+
+	<script src="{{STATIC_URL}}js/libs/modernizr-1.7.min.js"></script>
+
+	{% block ogtags %}
+	<meta property="og:title" content="Jon Loyens" /> 
+    <meta property="og:image" content="http://loyens.org/img/jononboat.jpg" /> 
+    <meta property="og:type" content="website" /> 
+    <meta property="og:url" content="http://refreshfb.loyens.org/" /> 
+    <meta property="fb:app_id" content="300132445106" /> 
+    <meta property="og:site_name" content="Refresh Austin FB Demo" /> 
+    <meta property="og:description" content="A demo of the FB Platform by Jon Loyens" /> 		
+	{% endblock ogtags %}
+
+
+</head>
+<body>
+
+	<div id="fb-root"></div>
+	<script src="http://connect.facebook.net/en_US/all.js"></script>
+	<script>
+  		FB.init({
+		    appId  : '{{settings.FACEBOOK_APP_ID}}',
+		    status : true, // check login status
+		    cookie : true, // enable cookies to allow the server to access the session
+		    xfbml  : true  // parse XFBML
+		});
+	</script>
+	
+
+	<div id="container">
+		<header>
+			{% block header %}
+				<h1>Refresh Austin Facebook Platform Demo</h1>
+
+			{% endblock header %}
+
+		</header>
+			
+		<div id="main" role="main">
+			{% block main %}
+				<p>We'll start by having you click a Like button:</p>
+				<div id="likebutton">
+					<fb:like href="http://refreshfb.loyens.org" send="true" width="450" show_faces="true" font="segoe ui"></fb:like>
+				</div>
+
+				<div id="liked" class="reveal">
+					<p>Once something is liked, if you know it's FB ID, we can get information on it via the Graph API</p>
+					<ul>
+						<li><a href="http://graph.facebook.com/103773232995164">University of Waterloo</a></li>
+						<li><a href="http://graph.facebook.com/115496108475317">A pair of jeans I liked on Levis.com</a></li>
+					</ul>
+					<a href="/login/">Next to Authentication</a>
+				</div>
+			{% endblock main %}
+
+		</div>
+
+		<footer>
+			{% block footer %}
+			{% endblock footer %}
+		</footer>
+	</div>
+
+	<script src="//ajax.googleapis.com/ajax/libs/jquery/1.6.1/jquery.min.js"></script>
+	<script src="{{STATIC_URL}}js/plugins.js"></script>
+	<script src="{{STATIC_URL}}js/script.js"></script>
+	{% block local_script %}
+	<script>
+		FB.Event.subscribe('edge.create', function(response) {
+  			alert("Thanks for liking this!");
+  			$("#liked").slideToggle();
+		});
+	</script>
+	{% endblock local_script %}
+	<!--[if lt IE 7 ]>
+	<script src="js/libs/dd_belatedpng.js"></script>
+	<script> DD_belatedPNG.fix('img, .png_bg');</script>
+	<![endif]-->
+</body>
+</html>
